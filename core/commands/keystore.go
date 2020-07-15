@@ -7,9 +7,8 @@ import (
 
 	cmds "github.com/ipfs/go-ipfs-cmds"
 	cmdenv "github.com/ipfs/go-ipfs/core/commands/cmdenv"
+	coreapi "github.com/ipfs/go-ipfs/core/coreapi"
 	options "github.com/ipfs/interface-go-ipfs-core/options"
-	peer "github.com/libp2p/go-libp2p-core/peer"
-	mbase "github.com/multiformats/go-multibase"
 )
 
 var KeyCmd = &cmds.Command{
@@ -94,7 +93,7 @@ var keyGenCmd = &cmds.Command{
 		if sizefound {
 			opts = append(opts, options.Key.Size(size))
 		}
-		if err = verifyFormatLabel(req.Options[keyFormatOptionName].(string)); err != nil {
+		if err = coreapi.VerifyIDFormatLabel(req.Options[keyFormatOptionName].(string)); err != nil {
 			return err
 		}
 
@@ -106,7 +105,7 @@ var keyGenCmd = &cmds.Command{
 
 		return cmds.EmitOnce(res, &KeyOutput{
 			Name: name,
-			Id:   formatID(key.ID(), req.Options[keyFormatOptionName].(string)),
+			Id:   coreapi.FormatID(key.ID(), req.Options[keyFormatOptionName].(string)),
 		})
 	},
 	Encoders: cmds.EncoderMap{
@@ -118,31 +117,6 @@ var keyGenCmd = &cmds.Command{
 	Type: KeyOutput{},
 }
 
-func verifyFormatLabel(formatLabel string) error {
-	switch formatLabel {
-	case "b58mh":
-		return nil
-	case "b36cid":
-		return nil
-	}
-	return fmt.Errorf("invalid output format option")
-}
-
-func formatID(id peer.ID, formatLabel string) string {
-	switch formatLabel {
-	case "b58mh":
-		return id.Pretty()
-	case "b36cid":
-		if s, err := peer.ToCid(id).StringOfBase(mbase.Base36); err != nil {
-			panic(err)
-		} else {
-			return s
-		}
-	default:
-		panic("unreachable")
-	}
-}
-
 var keyListCmd = &cmds.Command{
 	Helptext: cmds.HelpText{
 		Tagline: "List all local keypairs",
@@ -152,7 +126,7 @@ var keyListCmd = &cmds.Command{
 		cmds.StringOption(keyFormatOptionName, "f", "output format: b58mh or b36cid").WithDefault("b58mh"),
 	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
-		if err := verifyFormatLabel(req.Options[keyFormatOptionName].(string)); err != nil {
+		if err := coreapi.VerifyIDFormatLabel(req.Options[keyFormatOptionName].(string)); err != nil {
 			return err
 		}
 
@@ -171,7 +145,7 @@ var keyListCmd = &cmds.Command{
 		for _, key := range keys {
 			list = append(list, KeyOutput{
 				Name: key.Name(),
-				Id:   formatID(key.ID(), req.Options[keyFormatOptionName].(string)),
+				Id:   coreapi.FormatID(key.ID(), req.Options[keyFormatOptionName].(string)),
 			})
 		}
 
