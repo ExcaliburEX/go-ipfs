@@ -14,7 +14,8 @@ test_init_ipfs
 
 
 test_expect_success "'ipfs name publish --allow-offline' succeeds" '
-  PEERID=`ipfs id --format="<id>"` &&
+  # PEERID=`ipfs id --format="<id>"` &&
+  PEERID=`ipfs key list -f=b36cid -l | grep self | cut -d " " -f1` &&
   test_check_peerid "${PEERID}" &&
   ipfs name publish --allow-offline  "/ipfs/$HASH_WELCOME_DOCS" >publish_out
 '
