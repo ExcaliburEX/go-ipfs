@@ -443,9 +443,13 @@ file_size() {
     $_STAT "$1"
 }
 
+# len 46: 2048-bit RSA keys, m58mh-encoded
+# len 52: ED25519 keys, XXX-encoded
+# len 56: 2048-bit RSA keys, b36cid-encoded
+# len 62: ED25519 keys, XXX-encoded
 test_check_peerid() {
   peeridlen=$(echo "$1" | tr -dC "[:alnum:]" | wc -c | tr -d " ") &&
-  test "$peeridlen" = "46" -o "$peeridlen" = "52" -o "$peeridlen" = "62" -o "$peeridlen" = "56" || {
+  test "$peeridlen" = "46" -o "$peeridlen" = "52" -o "$peeridlen" = "56" -o "$peeridlen" = "62" || {
     echo "Bad peerid '$1' with len '$peeridlen'"
     return 1
   }

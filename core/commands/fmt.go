@@ -1,4 +1,4 @@
-package coreapi
+package commands
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	mbase "github.com/multiformats/go-multibase"
 )
 
-func VerifyIDFormatLabel(formatLabel string) error {
+func verifyIDFormatLabel(formatLabel string) error {
 	switch formatLabel {
 	case "b58mh":
 		return nil
@@ -17,7 +17,7 @@ func VerifyIDFormatLabel(formatLabel string) error {
 	return fmt.Errorf("invalid output format option")
 }
 
-func FormatID(id peer.ID, formatLabel string) string {
+func formatID(id peer.ID, formatLabel string) string {
 	switch formatLabel {
 	case "b58mh":
 		return id.Pretty()

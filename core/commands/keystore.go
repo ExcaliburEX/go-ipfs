@@ -7,7 +7,6 @@ import (
 
 	cmds "github.com/ipfs/go-ipfs-cmds"
 	cmdenv "github.com/ipfs/go-ipfs/core/commands/cmdenv"
-	coreapi "github.com/ipfs/go-ipfs/core/coreapi"
 	options "github.com/ipfs/interface-go-ipfs-core/options"
 )
 
@@ -93,7 +92,7 @@ var keyGenCmd = &cmds.Command{
 		if sizefound {
 			opts = append(opts, options.Key.Size(size))
 		}
-		if err = coreapi.VerifyIDFormatLabel(req.Options[keyFormatOptionName].(string)); err != nil {
+		if err = verifyIDFormatLabel(req.Options[keyFormatOptionName].(string)); err != nil {
 			return err
 		}
 
@@ -105,7 +104,7 @@ var keyGenCmd = &cmds.Command{
 
 		return cmds.EmitOnce(res, &KeyOutput{
 			Name: name,
-			Id:   coreapi.FormatID(key.ID(), req.Options[keyFormatOptionName].(string)),
+			Id:   formatID(key.ID(), req.Options[keyFormatOptionName].(string)),
 		})
 	},
 	Encoders: cmds.EncoderMap{
@@ -126,7 +125,7 @@ var keyListCmd = &cmds.Command{
 		cmds.StringOption(keyFormatOptionName, "f", "output format: b58mh or b36cid").WithDefault("b58mh"),
 	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
-		if err := coreapi.VerifyIDFormatLabel(req.Options[keyFormatOptionName].(string)); err != nil {
+		if err := verifyIDFormatLabel(req.Options[keyFormatOptionName].(string)); err != nil {
 			return err
 		}
 
@@ -145,7 +144,7 @@ var keyListCmd = &cmds.Command{
 		for _, key := range keys {
 			list = append(list, KeyOutput{
 				Name: key.Name(),
-				Id:   coreapi.FormatID(key.ID(), req.Options[keyFormatOptionName].(string)),
+				Id:   formatID(key.ID(), req.Options[keyFormatOptionName].(string)),
 			})
 		}
 
