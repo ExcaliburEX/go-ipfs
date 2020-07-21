@@ -9,29 +9,40 @@ test_description="Test ipfs repo operations"
 . lib/test-lib.sh
 
 test_name() {
-        ALG=$1
+        SELF_ALG=$1
+        GEN_ALG=$2
 
-        test_expect_success "ipfs init (variant $ALG)" '
+        test_expect_success "ipfs init (variant $SELF_ALG/$GEN_ALG)" '
         export IPFS_PATH="$(pwd)/.ipfs" &&
-        case $ALG in
+        case $SELF_ALG in
         rsa)
                 ipfs init --profile=test -a=rsa > /dev/null
                 ;;
         ed25519)
                 ipfs init --profile=test -a=ed25519 > /dev/null
                 ;;
-        *)
-                ipfs init --profile=test > /dev/null
+        esac &&
+        export PEERID=`ipfs key list -f=b36cid -l | grep self | cut -d " " -f1` &&
+        test_check_peerid "${PEERID}"
+        '
+
+        test_expect_success "'prepare keys" '
+        case $GEN_ALG in
+        rsa)
+                export KEY=`ipfs key gen -f=b58mh --type=rsa --size=2048 key` &&
+                export KEY_B36CID=`ipfs key list -f=b36cid -l | grep key | cut -d " " -f1`
                 ;;
-        esac
+        ed25519)
+                export KEY=`ipfs key gen -f=b36cid --type=ed25519 key`
+                export KEY_B36CID=$KEY
+                ;;
+        esac &&
+        test_check_peerid "${KEY}"
         '
 
         # test publishing a hash
 
-        # -- publish with self
         test_expect_success "'ipfs name publish --allow-offline' succeeds" '
-        PEERID=`ipfs key list -f=b36cid -l | grep self | cut -d " " -f1` &&
-        test_check_peerid "${PEERID}" &&
         ipfs name publish --allow-offline  "/ipfs/$HASH_WELCOME_DOCS" >publish_out
         '
 
@@ -51,10 +62,7 @@ test_name() {
 
         # test publishing with -Q option
 
-        # -- publish with self
         test_expect_success "'ipfs name publish --quieter' succeeds" '
-        PEERID=`ipfs key list -f=b36cid -l | grep self | cut -d " " -f1` &&
-        test_check_peerid "${PEERID}" &&
         ipfs name publish --allow-offline  -Q "/ipfs/$HASH_WELCOME_DOCS" >publish_out
         '
 
@@ -74,10 +82,7 @@ test_name() {
 
         # now test with a path
 
-        # -- publish with self
         test_expect_success "'ipfs name publish --allow-offline' succeeds" '
-        PEERID=`ipfs key list -f=b36cid -l | grep self | cut -d " " -f1` &&
-        test_check_peerid "${PEERID}" &&
         ipfs name publish --allow-offline "/ipfs/$HASH_WELCOME_DOCS/help" >publish_out
         '
 
@@ -103,10 +108,7 @@ test_name() {
 
         # publish with an explicit node ID
 
-        # -- publish with self
         test_expect_failure "'ipfs name publish --allow-offline <local-id> <hash>' succeeds" '
-        PEERID=`ipfs id --format="<id>"` &&
-        test_check_peerid "${PEERID}" &&
         echo ipfs name publish --allow-offline "${PEERID}" "/ipfs/$HASH_WELCOME_DOCS" &&
         ipfs name publish --allow-offline "${PEERID}" "/ipfs/$HASH_WELCOME_DOCS" >actual_node_id_publish
         '
@@ -118,7 +120,6 @@ test_name() {
 
         # test publishing with B36CID and B58MH resolve to the same B36CID
 
-        # -- publish with gen key
         test_expect_success "generate and verify a new key" '
         B58MH_ID=`ipfs key list -f=b58mh -l | grep self | cut -d " " -f1` &&
         B36CID_ID=`ipfs key list -f=b36cid -l | grep self | cut -d " " -f1` &&
@@ -131,7 +132,7 @@ test_name() {
         ipfs name publish --allow-offline  --key=${B36CID_ID} "/ipfs/$HASH_WELCOME_DOCS" >b36cid_published_id
         '
 
-        test_expect_success "publish an explicit node ID as key name looks good" '
+        test_expect_success "publish an explicit node ID as two key in B58MH and B36CID, name looks good" '
         echo "Published to ${B36CID_ID}: /ipfs/$HASH_WELCOME_DOCS" >expected_published_id &&
         test_cmp expected_published_id b58mh_published_id &&
         test_cmp expected_published_id b36cid_published_id
@@ -148,18 +149,12 @@ test_name() {
 
         # publish with an explicit node ID as key name
 
-        # -- publish with gen key
-        test_expect_success "generate and verify a new key" '
-        NEWID=`ipfs key gen -f=b36cid --type=rsa --size=2048 keyname` &&
-        test_check_peerid "${NEWID}"
-        '
-
         test_expect_success "'ipfs name publis --allow-offline --key=<peer-id> <hash>' succeeds" '
-        ipfs name publish --allow-offline  --key=${NEWID} "/ipfs/$HASH_WELCOME_DOCS" >actual_node_id_publish
+        ipfs name publish --allow-offline  --key=${KEY} "/ipfs/$HASH_WELCOME_DOCS" >actual_node_id_publish
         '
 
         test_expect_success "publish an explicit node ID as key name looks good" '
-        echo "Published to ${NEWID}: /ipfs/$HASH_WELCOME_DOCS" >expected_node_id_publish &&
+        echo "Published to ${KEY_B36CID}: /ipfs/$HASH_WELCOME_DOCS" >expected_node_id_publish &&
         test_cmp expected_node_id_publish actual_node_id_publish
         '
 
@@ -168,7 +163,6 @@ test_name() {
         HELLO_HASH="$(echo "\"hello world\"" | ipfs dag put)" &&
         OBJECT_HASH="$(echo "{\"thing\": {\"/\": \"${HELLO_HASH}\" }}" | ipfs dag put)"
         '
-        # -- publish with self
         test_expect_success "'ipfs name publish --allow-offline /ipld/...' succeeds" '
         PEERID=`ipfs key list -f=b36cid -l | grep self | cut -d " " -f1` &&
         test_check_peerid "${PEERID}" &&
@@ -254,10 +248,7 @@ test_name() {
         # Test daemon in offline mode
         test_launch_ipfs_daemon --offline
 
-        # -- publish with self
         test_expect_success "'ipfs name publish' fails offline mode" '
-        PEERID=`ipfs id --format="<id>"` &&
-        test_check_peerid "${PEERID}" &&
         test_expect_code 1 ipfs name publish "/ipfs/$HASH_WELCOME_DOCS"
         '
 
@@ -267,8 +258,9 @@ test_name() {
         rm -rf "$IPFS_PATH"
         '
 }
-test_name 'ed25519'
-test_name 'rsa'
-test_name ''
+test_name 'rsa' 'rsa'
+test_name 'rsa' 'ed25519'
+test_name 'ed25519' 'rsa'
+test_name 'ed25519' 'ed25519'
 
 test_done
