@@ -118,6 +118,15 @@ test_expect_success "publish an explicit node ID as key name looks good" '
   test_cmp expected_published_id b36cid_published_id
 '
 
+test_expect_success "'ipfs name resolve' succeeds" '
+  ipfs name resolve "$B36CID_ID" >output
+'
+
+test_expect_success "resolve output looks good" '
+  printf "/ipfs/%s\n" "$HASH_WELCOME_DOCS" >expected2 &&
+  test_cmp expected2 output
+'
+
 # publish with an explicit node ID as key name
 
 test_expect_success "generate and verify a new key" '
