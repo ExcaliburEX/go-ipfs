@@ -98,6 +98,26 @@ test_expect_failure "publish with our explicit node ID looks good" '
   test_cmp expected_node_id_publish actual_node_id_publish
 '
 
+# test publishing with B36CID and B58MH resolve to the same B36CID
+
+test_expect_success "generate and verify a new key" '
+  B58MH_ID=`ipfs key list -f=b58mh -l | grep self | cut -d " " -f1` &&
+  B36CID_ID=`ipfs key list -f=b36cid -l | grep self | cut -d " " -f1` &&
+  test_check_peerid "${B58MH_ID}" &&
+  test_check_peerid "${B36CID_ID}"
+'
+
+test_expect_success "'ipfs name publis --allow-offline --key=<peer-id> <hash>' succeeds" '
+  ipfs name publish --allow-offline  --key=${B58MH_ID} "/ipfs/$HASH_WELCOME_DOCS" >b58mh_published_id &&
+  ipfs name publish --allow-offline  --key=${B36CID_ID} "/ipfs/$HASH_WELCOME_DOCS" >b36cid_published_id
+'
+
+test_expect_success "publish an explicit node ID as key name looks good" '
+  echo "Published to ${B36CID_ID}: /ipfs/$HASH_WELCOME_DOCS" >expected_published_id &&
+  test_cmp expected_published_id b58mh_published_id &&
+  test_cmp expected_published_id b36cid_published_id
+'
+
 # publish with an explicit node ID as key name
 
 test_expect_success "generate and verify a new key" '
