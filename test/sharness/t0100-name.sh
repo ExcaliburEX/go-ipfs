@@ -8,11 +8,10 @@ test_description="Test ipfs repo operations"
 
 . lib/test-lib.sh
 
-test_name() {
+test_name_with_self() {
         SELF_ALG=$1
-        GEN_ALG=$2
 
-        test_expect_success "ipfs init (variant $SELF_ALG/$GEN_ALG)" '
+        test_expect_success "ipfs init (variant self $SELF_ALG)" '
         export IPFS_PATH="$(pwd)/.ipfs" &&
         case $SELF_ALG in
         rsa)
@@ -24,20 +23,6 @@ test_name() {
         esac &&
         export PEERID=`ipfs key list -f=b36cid -l | grep self | cut -d " " -f1` &&
         test_check_peerid "${PEERID}"
-        '
-
-        test_expect_success "'prepare keys" '
-        case $GEN_ALG in
-        rsa)
-                export KEY=`ipfs key gen -f=b58mh --type=rsa --size=2048 key` &&
-                export KEY_B36CID=`ipfs key list -f=b36cid -l | grep key | cut -d " " -f1`
-                ;;
-        ed25519)
-                export KEY=`ipfs key gen -f=b36cid --type=ed25519 key`
-                export KEY_B36CID=$KEY
-                ;;
-        esac &&
-        test_check_peerid "${KEY}"
         '
 
         # test publishing a hash
@@ -115,46 +100,6 @@ test_name() {
 
         test_expect_failure "publish with our explicit node ID looks good" '
         echo "Published to ${PEERID}: /ipfs/$HASH_WELCOME_DOCS" >expected_node_id_publish &&
-        test_cmp expected_node_id_publish actual_node_id_publish
-        '
-
-        # test publishing with B36CID and B58MH resolve to the same B36CID
-
-        test_expect_success "generate and verify a new key" '
-        B58MH_ID=`ipfs key list -f=b58mh -l | grep self | cut -d " " -f1` &&
-        B36CID_ID=`ipfs key list -f=b36cid -l | grep self | cut -d " " -f1` &&
-        test_check_peerid "${B58MH_ID}" &&
-        test_check_peerid "${B36CID_ID}"
-        '
-
-        test_expect_success "'ipfs name publis --allow-offline --key=<peer-id> <hash>' succeeds" '
-        ipfs name publish --allow-offline  --key=${B58MH_ID} "/ipfs/$HASH_WELCOME_DOCS" >b58mh_published_id &&
-        ipfs name publish --allow-offline  --key=${B36CID_ID} "/ipfs/$HASH_WELCOME_DOCS" >b36cid_published_id
-        '
-
-        test_expect_success "publish an explicit node ID as two key in B58MH and B36CID, name looks good" '
-        echo "Published to ${B36CID_ID}: /ipfs/$HASH_WELCOME_DOCS" >expected_published_id &&
-        test_cmp expected_published_id b58mh_published_id &&
-        test_cmp expected_published_id b36cid_published_id
-        '
-
-        test_expect_success "'ipfs name resolve' succeeds" '
-        ipfs name resolve "$B36CID_ID" >output
-        '
-
-        test_expect_success "resolve output looks good" '
-        printf "/ipfs/%s\n" "$HASH_WELCOME_DOCS" >expected2 &&
-        test_cmp expected2 output
-        '
-
-        # publish with an explicit node ID as key name
-
-        test_expect_success "'ipfs name publis --allow-offline --key=<peer-id> <hash>' succeeds" '
-        ipfs name publish --allow-offline  --key=${KEY} "/ipfs/$HASH_WELCOME_DOCS" >actual_node_id_publish
-        '
-
-        test_expect_success "publish an explicit node ID as key name looks good" '
-        echo "Published to ${KEY_B36CID}: /ipfs/$HASH_WELCOME_DOCS" >expected_node_id_publish &&
         test_cmp expected_node_id_publish actual_node_id_publish
         '
 
@@ -258,9 +203,77 @@ test_name() {
         rm -rf "$IPFS_PATH"
         '
 }
-test_name 'rsa' 'rsa'
-test_name 'rsa' 'ed25519'
-test_name 'ed25519' 'rsa'
-test_name 'ed25519' 'ed25519'
+test_name_with_self 'rsa'
+test_name_with_self 'ed25519'
+
+test_name_with_key() {
+        GEN_ALG=$1
+
+        test_expect_success "ipfs init (key variant $GEN_ALG)" '
+        export IPFS_PATH="$(pwd)/.ipfs" &&
+        ipfs init --profile=test > /dev/null
+        '
+
+        test_expect_success "'prepare keys" '
+        case $GEN_ALG in
+        rsa)
+                export KEY=`ipfs key gen -f=b58mh --type=rsa --size=2048 key` &&
+                export KEY_B36CID=`ipfs key list -f=b36cid -l | grep key | cut -d " " -f1`
+                ;;
+        ed25519)
+                export KEY=`ipfs key gen -f=b36cid --type=ed25519 key`
+                export KEY_B36CID=$KEY
+                ;;
+        esac &&
+        test_check_peerid "${KEY}"
+        '
+
+        # test publishing with B36CID and B58MH resolve to the same B36CID
+
+        test_expect_success "generate and verify a new key" '
+        B58MH_ID=`ipfs key list -f=b58mh -l | grep self | cut -d " " -f1` &&
+        B36CID_ID=`ipfs key list -f=b36cid -l | grep self | cut -d " " -f1` &&
+        test_check_peerid "${B58MH_ID}" &&
+        test_check_peerid "${B36CID_ID}"
+        '
+
+        test_expect_success "'ipfs name publis --allow-offline --key=<peer-id> <hash>' succeeds" '
+        ipfs name publish --allow-offline  --key=${B58MH_ID} "/ipfs/$HASH_WELCOME_DOCS" >b58mh_published_id &&
+        ipfs name publish --allow-offline  --key=${B36CID_ID} "/ipfs/$HASH_WELCOME_DOCS" >b36cid_published_id
+        '
+
+        test_expect_success "publish an explicit node ID as two key in B58MH and B36CID, name looks good" '
+        echo "Published to ${B36CID_ID}: /ipfs/$HASH_WELCOME_DOCS" >expected_published_id &&
+        test_cmp expected_published_id b58mh_published_id &&
+        test_cmp expected_published_id b36cid_published_id
+        '
+
+        test_expect_success "'ipfs name resolve' succeeds" '
+        ipfs name resolve "$B36CID_ID" >output
+        '
+
+        test_expect_success "resolve output looks good" '
+        printf "/ipfs/%s\n" "$HASH_WELCOME_DOCS" >expected2 &&
+        test_cmp expected2 output
+        '
+
+        # publish with an explicit node ID as key name
+
+        test_expect_success "'ipfs name publis --allow-offline --key=<peer-id> <hash>' succeeds" '
+        ipfs name publish --allow-offline  --key=${KEY} "/ipfs/$HASH_WELCOME_DOCS" >actual_node_id_publish
+        '
+
+        test_expect_success "publish an explicit node ID as key name looks good" '
+        echo "Published to ${KEY_B36CID}: /ipfs/$HASH_WELCOME_DOCS" >expected_node_id_publish &&
+        test_cmp expected_node_id_publish actual_node_id_publish
+        '
+
+        # cleanup
+        test_expect_success "clean up ipfs dir" '
+        rm -rf "$IPFS_PATH"
+        '
+}
+test_name_with_key 'rsa'
+test_name_with_key 'ed25519'
 
 test_done
