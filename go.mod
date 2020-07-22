@@ -1,5 +1,7 @@
 module github.com/ipfs/go-ipfs
 
+// replace github.com/ipfs/interface-go-ipfs-core => /Users/petar/src/github.com/ipfs/interface-go-ipfs-core
+
 require (
 	bazil.org/fuse v0.0.0-20200117225306-7b5117fecadc
 	github.com/AndreasBriese/bbloom v0.0.0-20190825152654-46b345b51c96 // indirect
@@ -54,7 +56,7 @@ require (
 	github.com/ipfs/go-path v0.0.7
 	github.com/ipfs/go-unixfs v0.2.4
 	github.com/ipfs/go-verifcid v0.0.1
-	github.com/ipfs/interface-go-ipfs-core v0.3.1-0.20200722160514-9ae21a77a38f
+	github.com/ipfs/interface-go-ipfs-core v0.3.1-0.20200722180734-f41976c5cd53
 	github.com/ipld/go-car v0.1.0
 	github.com/jbenet/go-is-domain v1.0.5
 	github.com/jbenet/go-random v0.0.0-20190219211222-123a90aedc0c
