@@ -1,7 +1,5 @@
 module github.com/ipfs/go-ipfs
 
-// replace github.com/ipfs/interface-go-ipfs-core => /Users/petar/src/github.com/ipfs/interface-go-ipfs-core
-
 require (
 	bazil.org/fuse v0.0.0-20200117225306-7b5117fecadc
 	github.com/AndreasBriese/bbloom v0.0.0-20190825152654-46b345b51c96 // indirect

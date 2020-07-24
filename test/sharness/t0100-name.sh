@@ -14,6 +14,9 @@ test_name_with_self() {
         test_expect_success "ipfs init (variant self $SELF_ALG)" '
         export IPFS_PATH="$(pwd)/.ipfs" &&
         case $SELF_ALG in
+        default)
+                ipfs init --profile=test > /dev/null
+                ;;
         rsa)
                 ipfs init --profile=test -a=rsa > /dev/null
                 ;;
@@ -48,10 +51,10 @@ test_name_with_self() {
         # test publishing with -Q option
 
         test_expect_success "'ipfs name publish --quieter' succeeds" '
-        ipfs name publish --allow-offline  -Q "/ipfs/$HASH_WELCOME_DOCS" >publish_out
+        ipfs name publish --allow-offline -Q "/ipfs/$HASH_WELCOME_DOCS" >publish_out
         '
 
-        test_expect_success "pubrmlish --quieter output looks good" '
+        test_expect_success "publish --quieter output looks good" '
         echo "${PEERID}" >expected1 &&
         test_cmp expected1 publish_out
         '
@@ -103,7 +106,37 @@ test_name_with_self() {
         test_cmp expected_node_id_publish actual_node_id_publish
         '
 
+        # test publishing with B36CID and B58MH resolve to the same B36CID
+
+        test_expect_success "generate and verify a new key" '
+        B58MH_ID=`ipfs key list -f=b58mh -l | grep self | cut -d " " -f1` &&
+        B36CID_ID=`ipfs key list -f=b36cid -l | grep self | cut -d " " -f1` &&
+        test_check_peerid "${B58MH_ID}" &&
+        test_check_peerid "${B36CID_ID}"
+        '
+
+        test_expect_success "'ipfs name publish --allow-offline --key=<peer-id> <hash>' succeeds" '
+        ipfs name publish --allow-offline  --key=${B58MH_ID} "/ipfs/$HASH_WELCOME_DOCS" >b58mh_published_id &&
+        ipfs name publish --allow-offline  --key=${B36CID_ID} "/ipfs/$HASH_WELCOME_DOCS" >b36cid_published_id
+        '
+
+        test_expect_success "publish an explicit node ID as two key in B58MH and B36CID, name looks good" '
+        echo "Published to ${B36CID_ID}: /ipfs/$HASH_WELCOME_DOCS" >expected_published_id &&
+        test_cmp expected_published_id b58mh_published_id &&
+        test_cmp expected_published_id b36cid_published_id
+        '
+
+        test_expect_success "'ipfs name resolve' succeeds" '
+        ipfs name resolve "$B36CID_ID" >output
+        '
+
+        test_expect_success "resolve output looks good" '
+        printf "/ipfs/%s\n" "$HASH_WELCOME_DOCS" >expected2 &&
+        test_cmp expected2 output
+        '
+
         # test IPNS + IPLD
+
         test_expect_success "'ipfs dag put' succeeds" '
         HELLO_HASH="$(echo "\"hello world\"" | ipfs dag put)" &&
         OBJECT_HASH="$(echo "{\"thing\": {\"/\": \"${HELLO_HASH}\" }}" | ipfs dag put)"
@@ -120,7 +153,7 @@ test_name_with_self() {
         test_expect_success "'ipfs name resolve' succeeds" '
         ipfs name resolve "$PEERID" >output
         '
-        test_expect_success "resolve output looks good" '
+        test_expect_success "resolve output looks good (IPNS + IPLD)" '
         printf "/ipld/%s/thing\n" "$OBJECT_HASH" >expected4 &&
         test_cmp expected4 output
         '
@@ -152,7 +185,7 @@ test_name_with_self() {
         test_expect_success "'ipfs name resolve --offline' succeeds" '
         ipfs name resolve --offline "$PEERID" >output
         '
-        test_expect_success "resolve output looks good" '
+        test_expect_success "resolve output looks good (offline resolve)" '
         printf "/ipld/%s/thing\n" "$OBJECT_HASH" >expected4 &&
         test_cmp expected4 output
         '
@@ -160,7 +193,7 @@ test_name_with_self() {
         test_expect_success "'ipfs name resolve --offline -n' succeeds" '
         ipfs name resolve --offline -n "$PEERID" >output
         '
-        test_expect_success "resolve output looks good" '
+        test_expect_success "resolve output looks good (offline resolve, -n)" '
         printf "/ipld/%s/thing\n" "$OBJECT_HASH" >expected4 &&
         test_cmp expected4 output
         '
@@ -170,7 +203,7 @@ test_name_with_self() {
         test_expect_success "'ipfs name resolve --offline' succeeds" '
         ipfs name resolve --offline "$PEERID" >output
         '
-        test_expect_success "resolve output looks good" '
+        test_expect_success "resolve output looks good (with daemon)" '
         printf "/ipld/%s/thing\n" "$OBJECT_HASH" >expected4 &&
         test_cmp expected4 output
         '
@@ -178,7 +211,7 @@ test_name_with_self() {
         test_expect_success "'ipfs name resolve --offline -n' succeeds" '
         ipfs name resolve --offline -n "$PEERID" >output
         '
-        test_expect_success "resolve output looks good" '
+        test_expect_success "resolve output looks good (with daemon, -n)" '
         printf "/ipld/%s/thing\n" "$OBJECT_HASH" >expected4 &&
         test_cmp expected4 output
         '
@@ -203,6 +236,7 @@ test_name_with_self() {
         rm -rf "$IPFS_PATH"
         '
 }
+test_name_with_self 'default'
 test_name_with_self 'rsa'
 test_name_with_self 'ed25519'
 
@@ -220,7 +254,11 @@ test_name_with_key() {
                 export KEY=`ipfs key gen -f=b58mh --type=rsa --size=2048 key` &&
                 export KEY_B36CID=`ipfs key list -f=b36cid -l | grep key | cut -d " " -f1`
                 ;;
-        ed25519)
+        ed25519_b58)
+                export KEY=`ipfs key gen -f=b58mh --type=ed25519 key`
+                export KEY_B36CID=`ipfs key list -f=b36cid -l | grep key | cut -d " " -f1`
+                ;;
+        ed25519_b36)
                 export KEY=`ipfs key gen -f=b36cid --type=ed25519 key`
                 export KEY_B36CID=$KEY
                 ;;
@@ -228,38 +266,9 @@ test_name_with_key() {
         test_check_peerid "${KEY}"
         '
 
-        # test publishing with B36CID and B58MH resolve to the same B36CID
-
-        test_expect_success "generate and verify a new key" '
-        B58MH_ID=`ipfs key list -f=b58mh -l | grep self | cut -d " " -f1` &&
-        B36CID_ID=`ipfs key list -f=b36cid -l | grep self | cut -d " " -f1` &&
-        test_check_peerid "${B58MH_ID}" &&
-        test_check_peerid "${B36CID_ID}"
-        '
-
-        test_expect_success "'ipfs name publis --allow-offline --key=<peer-id> <hash>' succeeds" '
-        ipfs name publish --allow-offline  --key=${B58MH_ID} "/ipfs/$HASH_WELCOME_DOCS" >b58mh_published_id &&
-        ipfs name publish --allow-offline  --key=${B36CID_ID} "/ipfs/$HASH_WELCOME_DOCS" >b36cid_published_id
-        '
-
-        test_expect_success "publish an explicit node ID as two key in B58MH and B36CID, name looks good" '
-        echo "Published to ${B36CID_ID}: /ipfs/$HASH_WELCOME_DOCS" >expected_published_id &&
-        test_cmp expected_published_id b58mh_published_id &&
-        test_cmp expected_published_id b36cid_published_id
-        '
-
-        test_expect_success "'ipfs name resolve' succeeds" '
-        ipfs name resolve "$B36CID_ID" >output
-        '
-
-        test_expect_success "resolve output looks good" '
-        printf "/ipfs/%s\n" "$HASH_WELCOME_DOCS" >expected2 &&
-        test_cmp expected2 output
-        '
-
         # publish with an explicit node ID as key name
 
-        test_expect_success "'ipfs name publis --allow-offline --key=<peer-id> <hash>' succeeds" '
+        test_expect_success "'ipfs name publish --allow-offline --key=<peer-id> <hash>' succeeds" '
         ipfs name publish --allow-offline  --key=${KEY} "/ipfs/$HASH_WELCOME_DOCS" >actual_node_id_publish
         '
 
@@ -274,6 +283,7 @@ test_name_with_key() {
         '
 }
 test_name_with_key 'rsa'
-test_name_with_key 'ed25519'
+test_name_with_key 'ed25519_b58'
+test_name_with_key 'ed25519_b36'
 
 test_done
