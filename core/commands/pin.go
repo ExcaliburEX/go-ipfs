@@ -49,8 +49,7 @@ type AddPinOutput struct {
 }
 
 type IsPinnedOutput struct {
-	CIDs   []string
-	Pinned []bool
+	Keys map[string]bool // CID -> is pinned
 }
 
 const (
@@ -305,10 +304,7 @@ Checks whether an object is already pinned.
 			return err
 		}
 
-		out := &IsPinnedOutput{
-			CIDs:   make([]string, 0, len(req.Arguments)),
-			Pinned: make([]bool, 0, len(req.Arguments)),
-		}
+		out := &IsPinnedOutput{}
 		for _, b := range req.Arguments {
 			rp, err := api.ResolvePath(req.Context, path.New(b))
 			if err != nil {
@@ -319,8 +315,7 @@ Checks whether an object is already pinned.
 			if _, pinned, err := api.Pin().IsPinned(req.Context, rp, o); err != nil {
 				return err
 			} else {
-				out.CIDs = append(out.CIDs, id)
-				out.Pinned = append(out.Pinned, pinned)
+				out.Keys[id] = pinned
 			}
 		}
 
@@ -328,11 +323,11 @@ Checks whether an object is already pinned.
 	},
 	Encoders: cmds.EncoderMap{
 		cmds.Text: cmds.MakeTypedEncoder(func(req *cmds.Request, w io.Writer, out *IsPinnedOutput) error {
-			for i := range out.CIDs {
-				if out.Pinned[i] {
-					fmt.Fprintf(w, "pinned %s\n", out.CIDs[i])
+			for k, pinned := range out.Keys {
+				if pinned {
+					fmt.Fprintf(w, "pinned %s\n", k)
 				} else {
-					fmt.Fprintf(w, "not pinned %s\n", out.CIDs[i])
+					fmt.Fprintf(w, "not pinned %s\n", k)
 				}
 			}
 
