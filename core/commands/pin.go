@@ -30,11 +30,12 @@ var PinCmd = &cmds.Command{
 	},
 
 	Subcommands: map[string]*cmds.Command{
-		"add":    addPinCmd,
-		"rm":     rmPinCmd,
-		"ls":     listPinCmd,
-		"verify": verifyPinCmd,
-		"update": updatePinCmd,
+		"add":      addPinCmd,
+		"rm":       rmPinCmd,
+		"ispinned": isPinnedCmd,
+		"ls":       listPinCmd,
+		"verify":   verifyPinCmd,
+		"update":   updatePinCmd,
 	},
 }
 
@@ -45,6 +46,11 @@ type PinOutput struct {
 type AddPinOutput struct {
 	Pins     []string
 	Progress int `json:",omitempty"`
+}
+
+type IsPinnedOutput struct {
+	CIDs   []string
+	Pinned []bool
 }
 
 const (
@@ -251,6 +257,83 @@ collected if needed. (By default, recursively. Use -r=false for direct pins.)
 		cmds.Text: cmds.MakeTypedEncoder(func(req *cmds.Request, w io.Writer, out *PinOutput) error {
 			for _, k := range out.Pins {
 				fmt.Fprintf(w, "unpinned %s\n", k)
+			}
+
+			return nil
+		}),
+	},
+}
+
+var isPinnedCmd = &cmds.Command{
+	Helptext: cmds.HelpText{
+		Tagline: "Check whether an object is already pinned.",
+		ShortDescription: `
+Checks whether an object is already pinned.
+`,
+	},
+
+	Arguments: []cmds.Argument{
+		cmds.StringArg("ipfs-path", true, true, "Path to object(s) to be checked if pinned.").EnableStdin(),
+	},
+	Options: []cmds.Option{
+		cmds.StringOption(pinTypeOptionName, "t", "Specify the pin type (recursive, direct, indirect, all)").WithDefault("all"),
+	},
+	Type: PinOutput{},
+	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
+		api, err := cmdenv.GetApi(env, req)
+		if err != nil {
+			return err
+		}
+
+		var o options.PinIsPinnedOption
+		typeStr := req.Options[pinTypeOptionName].(string)
+		switch typeStr {
+		case "recursive", "direct", "indirect", "all":
+			if o, err = options.Pin.IsPinned.Type(typeStr); err != nil {
+				panic("unexpected pin type")
+			}
+		default:
+			return fmt.Errorf("unknown pinning type %q", typeStr)
+		}
+
+		if err := req.ParseBodyArgs(); err != nil {
+			return err
+		}
+
+		enc, err := cmdenv.GetCidEncoder(req)
+		if err != nil {
+			return err
+		}
+
+		out := &IsPinnedOutput{
+			CIDs:   make([]string, 0, len(req.Arguments)),
+			Pinned: make([]bool, 0, len(req.Arguments)),
+		}
+		for _, b := range req.Arguments {
+			rp, err := api.ResolvePath(req.Context, path.New(b))
+			if err != nil {
+				return err
+			}
+
+			id := enc.Encode(rp.Cid())
+			if _, pinned, err := api.Pin().IsPinned(req.Context, rp, o); err != nil {
+				return err
+			} else {
+				out.CIDs = append(out.CIDs, id)
+				out.Pinned = append(out.Pinned, pinned)
+			}
+		}
+
+		return cmds.EmitOnce(res, out)
+	},
+	Encoders: cmds.EncoderMap{
+		cmds.Text: cmds.MakeTypedEncoder(func(req *cmds.Request, w io.Writer, out *IsPinnedOutput) error {
+			for i := range out.CIDs {
+				if out.Pinned[i] {
+					fmt.Fprintf(w, "pinned %s\n", out.CIDs[i])
+				} else {
+					fmt.Fprintf(w, "not pinned %s\n", out.CIDs[i])
+				}
 			}
 
 			return nil
